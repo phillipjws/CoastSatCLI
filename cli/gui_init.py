@@ -340,7 +340,7 @@ def write_initialization_report(results, failures, base_dir, sitename):
     print(f"Init CSV report written to:\n{csv_path}")
 
 @Gooey(
-    program_name="CoastSat Init GUI",
+    program_name="CoastSat Site Setup",
     default_size=(800, 720),
     clear_before_run=True,
     show_restart_button=False,
@@ -351,48 +351,51 @@ def write_initialization_report(results, failures, base_dir, sitename):
     progress_expr="pct",
 )
 def main() -> None:
-    parser = GooeyParser(description="Create CoastSat settings.json and optionally run analysis.")
-    parser.add_argument("--engine", choices=["legacy", "pipeline"], default="pipeline", help="Analysis engine saved for this site and used when running it.")
-    parser.add_argument("--base_dir", required=True, widget="DirChooser", help="Base directory where the project folder will be created.")
-    parser.add_argument("--sitename", required=True, help="Project name (used as folder name).")
-    parser.add_argument("--shoreline", required=True, widget="FileChooser", help="Shoreline GeoJSON/Shapefile covering the AOI(s).")
+    parser = GooeyParser(prog="Options", description="Create CoastSat settings.json and optionally run analysis.")
+    parser._optionals.title = "Initial Setup"
+    parser.add_argument("--engine", metavar="Analysis Engine", choices=["legacy", "pipeline"], default="pipeline", help="Analysis engine saved for this site and used when running it.")
+    parser.add_argument("--base_dir", metavar="Base Directory", required=True, widget="DirChooser", help="Base directory where the project folder will be created.")
+    parser.add_argument("--sitename", metavar="Site Name", required=True, help="Project name (used as folder name).")
+    parser.add_argument("--shoreline", metavar="Shoreline File", required=True, widget="FileChooser", help="Shoreline GeoJSON/Shapefile covering the AOI(s).")
     parser.add_argument(
-        "--aois",
+        "--aois", 
+        metavar="Area Of Interest KML File(s)",
         nargs="+",
         widget="MultiFileChooser",
         required=True,
-        help="AOI KML file(s)"
+        help="AOI KML file(s), choose one for single site analysis or multiple for batch analysis."
     )
     parser.add_argument(
         "--delete_tifs",
+        metavar="Delete Intermediate TIFs",
         action="store_true",
         help="Delete intermediate tif files after each site run"
     )
-    parser.add_argument("--run_now", action="store_true", help="Run analysis immediately after init.")
+    parser.add_argument("--run_now", metavar="Run Analysis Now", action="store_true", help="Run analysis immediately after init.")
 
     # Tide inputs: choose FES or CSV, optional filter.
-    tide_group = parser.add_argument_group("Tide correction")
-    tide_group.add_argument("--tide_method", choices=["fes", "csv"], default="fes", help="Choose tide correction mode.")
-    tide_group.add_argument("--fes_config", widget="FileChooser", help="FES2022 YAML config (for FES mode).")
-    tide_group.add_argument("--tide_csv", widget="FileChooser", help="Tide CSV path (for CSV mode).")
-    tide_group.add_argument("--beach_slope", default=0.1, help="Beach slope for CSV tide mode.", type=float)
+    tide_group = parser.add_argument_group("Tidal Correction")
+    tide_group.add_argument("--tide_method", metavar="Tide Correction Method", choices=["fes", "csv"], default="fes", help="Choose tide correction mode.")
+    tide_group.add_argument("--fes_config", metavar="FES Config File", widget="FileChooser", help="FES2022 YAML config (for FES mode).")
+    tide_group.add_argument("--tide_csv", metavar="Tide CSV File", widget="FileChooser", help="Tide CSV path (for CSV mode).")
+    tide_group.add_argument("--beach_slope", metavar="Default Beach Slope", default=0.1, help="Beach slope for CSV tide mode.", type=float)
 
     # Tide filtering
-    tide_filter_group = parser.add_argument_group("Tide filtering", gooey_options={"group": "Tide correction"})
-    tide_filter_group.add_argument("--enable_tide_filter", action="store_true", help="Enable tide percentile filtering.")
-    tide_filter_group.add_argument("--tide_lower_percentile", default=5.0, type=float, help="Lower percentile to keep (0-100).")
-    tide_filter_group.add_argument("--tide_upper_percentile", default=95.0, type=float, help="Upper percentile to keep (0-100).")
+    tide_filter_group = parser.add_argument_group("Tide Filtering", gooey_options={"group": "Tide correction"})
+    tide_filter_group.add_argument("--enable_tide_filter", metavar="Enable Tide Filtering", action="store_true", help="Enable tide percentile filtering.")
+    tide_filter_group.add_argument("--tide_lower_percentile", metavar="Lower Tide Percentile", default=5.0, type=float, help="Lower percentile to keep (0-100).")
+    tide_filter_group.add_argument("--tide_upper_percentile", metavar="Upper Tide Percentile", default=95.0, type=float, help="Upper percentile to keep (0-100).")
 
     # EPSG override
     epsg_group = parser.add_argument_group("EPSG")
-    epsg_group.add_argument("--epsg", type=int, help="Manual EPSG override. Leave blank to auto-detect from AOI.")
+    epsg_group.add_argument("--epsg", metavar="EPSG Code", type=int, help="Manual EPSG override. Leave blank to auto-detect from AOI.")
 
     # Transect geometry controls (advanced).
-    tran_group = parser.add_argument_group("Transects (advanced)")
-    tran_group.add_argument("--transect_spacing", default=100.0, type=float, help="Spacing between transects (m).")
-    tran_group.add_argument("--transect_length", default=200.0, type=float, help="Transect total length (m).")
-    tran_group.add_argument("--transect_offset_ratio", default=0.75, type=float, help="Fraction seaward vs landward (0-1).")
-    tran_group.add_argument("--transect_skip_threshold", default=300.0, type=float, help="Skip shoreline segments shorter than this (m).")
+    tran_group = parser.add_argument_group("Advanced Transect Settings")
+    tran_group.add_argument("--transect_spacing", metavar="Transect Spacing", default=100.0, type=float, help="Spacing between transects (m).")
+    tran_group.add_argument("--transect_length", metavar="Transect Length", default=200.0, type=float, help="Transect total length (m).")
+    tran_group.add_argument("--transect_offset_ratio", metavar="Transect Offset Ratio", default=0.75, type=float, help="Fraction seaward vs landward (0-1).")
+    tran_group.add_argument("--transect_skip_threshold", metavar="Transect Skip Threshold", default=300.0, type=float, help="Skip shoreline segments shorter than this (m).")
 
     args = parser.parse_args()
     date = datetime.now().strftime("%Y%m%d")
