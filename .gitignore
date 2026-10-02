@@ -20,3 +20,4 @@ test_rstb.py
 /doc/.ipynb_checkpoints
 /data
 /random
+.vscode/
