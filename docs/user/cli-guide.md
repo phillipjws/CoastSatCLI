@@ -60,6 +60,8 @@ The CLI (or dialogs on Windows) guides you through:
 python cli/coastsatcli.py run --config path/to/<sitename>/settings.json
 ```
 
+The command uses the `engine` saved in `settings.json` during setup. To override it for one run, add `--engine pipeline` or `--engine legacy`. Older settings files without an `engine` field retain the legacy default; add `"engine": "pipeline"` at the top level to make those sites use the pipeline automatically.
+
 ### 3.2 What Happens
 1. Settings are validated and paths resolved.
 2. CoastSat downloads imagery from GEE (if not already cached) and runs shoreline detection.

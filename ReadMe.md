@@ -91,7 +91,7 @@ PY
 python cli/CoastsatCLI.py init          # guided setup to build a site and settings.json
 python cli/CoastsatCLI.py run --config path/to/settings.json
 ```
-Add `--engine pipeline` to drive the new pipeline through the legacy CLI, or omit it to use the original `Complete_Analysis.py` / `Complete_Analysis_No_Tide.py`.
+The init GUI saves its engine selection in each site's `settings.json`. CLI runs use that saved engine; `--engine pipeline` or `--engine legacy` overrides it for one run. Older settings files without an `engine` field use legacy behavior. Add `"engine": "pipeline"` at the top level of an older site's settings to use the new pipeline by default.
 
 ### Reruns and inspection (either path)
 - Rerun with updated transects/ref shorelines: `python cli/CoastsatCLI.py site-rerun --config path/to/settings.json`.

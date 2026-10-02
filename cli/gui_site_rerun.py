@@ -56,7 +56,7 @@ def _copy_if_provided(src: str | None, dest: Path, label: str) -> bool:
 def main() -> None:
     parser = GooeyParser(description="Rerun an existing CoastSat site with optional overrides.")
     parser.add_argument("--settings", required=True, widget="FileChooser", help="Path to existing settings.json.")
-    parser.add_argument("--engine", choices=["legacy", "pipeline"], default="legacy", help="Analysis engine.")
+    parser.add_argument("--engine", choices=["auto", "legacy", "pipeline"], default="auto", help="Auto uses the site's saved engine (legacy for older sites); select an engine to override it for this run.")
 
     overrides = parser.add_argument_group("Overrides")
     overrides.add_argument("--reference_shoreline", widget="FileChooser", help="Replace reference shoreline file.")
@@ -110,7 +110,7 @@ def main() -> None:
     print("Site rerun prep complete.")
 
     if args.run_now:
-        exit_code = run_analysis_from_config(settings_path, engine=args.engine)
+        exit_code = run_analysis_from_config(settings_path, engine=None if args.engine == "auto" else args.engine)
         if exit_code == 0:
             print("Analysis completed successfully.")
         else:

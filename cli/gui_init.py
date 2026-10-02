@@ -32,6 +32,7 @@ from cli.geo_utils import (  # noqa: E402
     pick_canadian_utm_epsg,
 )
 from cli.dialogs import run_analysis_from_config  # noqa: E402
+from cli.engine import resolve_engine  # noqa: E402
 
 IMAGE_DIR = ROOT_DIR / "assets" / "gooey_icons"
 
@@ -112,11 +113,13 @@ def _init_site(
     base_dir: Path,
     epsg: int,
     transect_opts: dict,
+    engine: str = "pipeline",
 ) -> dict:
     """
     Core init routine: scaffold folders, clip shoreline to AOI, generate transects,
     write settings.json, and copy inputs into place. Returns paths for display.
     """
+    engine = resolve_engine({}, engine)
     paths = setup_project_directories(str(base_dir), sitename)
     site_dir = Path(paths["site_dir"])
     input_dir = Path(paths["input_dir"])
@@ -143,6 +146,7 @@ def _init_site(
     shutil.copy2(aoi_path, aoi_dest)
 
     settings = {
+        "engine": engine,
         "inputs": {
             "sitename": sitename,
             "aoi_path": os.path.relpath(aoi_dest, start=site_dir),
@@ -190,7 +194,7 @@ def delete_tifs(folder: Path):
             print(f"Could not delete {tif}: {e}")
     print(f"Deleted {count} tif files in {folder}")
 
-def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir, tran_opts):
+def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine="pipeline"):
     # modified to track failures instead of exit
     init_results = []
     init_failures = []
@@ -216,6 +220,7 @@ def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir,
                 base_dir=base_dir,
                 epsg=epsg,
                 transect_opts=tran_opts,
+                engine=engine,
             )
             init_results.append(result)
             print(f"  settings.json: {result['settings_path']}")
@@ -347,7 +352,7 @@ def write_initialization_report(results, failures, base_dir, sitename):
 )
 def main() -> None:
     parser = GooeyParser(description="Create CoastSat settings.json and optionally run analysis.")
-    parser.add_argument("--engine", choices=["legacy", "pipeline"], default="pipeline", help="Analysis engine to run after init.")
+    parser.add_argument("--engine", choices=["legacy", "pipeline"], default="pipeline", help="Analysis engine saved for this site and used when running it.")
     parser.add_argument("--base_dir", required=True, widget="DirChooser", help="Base directory where the project folder will be created.")
     parser.add_argument("--sitename", required=True, help="Project name (used as folder name).")
     parser.add_argument("--shoreline", required=True, widget="FileChooser", help="Shoreline GeoJSON/Shapefile covering the AOI(s).")
@@ -436,7 +441,7 @@ def main() -> None:
         "skip_threshold": float(args.transect_skip_threshold),
     }
 
-    init_results, init_failures = init_sites(aoi_paths, sitenames, args.epsg, shoreline_gdf, tide_config, base_dir, tran_opts)
+    init_results, init_failures = init_sites(aoi_paths, sitenames, args.epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine=args.engine)
     print("\nInitialization complete.")
     print(f"Successful: {len(init_results)}")
     print(f"Failed    : {len(init_failures)}")
