@@ -421,7 +421,7 @@ def improved_transects_plot(output, transects, cross_distance_tidally_corrected,
     num_intervals = 100  # Number of color intervals
 
     # Create colormap and normalization
-    cmap = cm.get_cmap('RdBu_r', num_intervals)  # Red for erosion, blue for accretion
+    cmap = plt.get_cmap('RdBu_r', num_intervals)  # Red for erosion, blue for accretion
     norm = mcolors.Normalize(vmin=trend_min, vmax=trend_max)
 
     fig, ax = plt.subplots(figsize=(12, 8), tight_layout=True)
@@ -497,13 +497,13 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
         num_intervals = 61
 
         # Create a colormap
-        cmap = cm.get_cmap('coolwarm', num_intervals)
+        cmap = plt.get_cmap('coolwarm', num_intervals)
         norm = mcolors.Normalize(vmin=trend_min, vmax=trend_max)
 
         # Initialize the figure
         fig, ax = plt.subplots(figsize=(15, 8), tight_layout=True)
         norm = mcolors.Normalize(vmin=trend_min, vmax=trend_max)
-        cmap = cm.get_cmap('coolwarm', num_intervals)
+        cmap = plt.get_cmap('coolwarm', num_intervals)
 
         for i in range(len(output['shorelines'])):
             sl = output['shorelines'][i]

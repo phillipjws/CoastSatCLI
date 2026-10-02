@@ -10,7 +10,6 @@ import numpy as np
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-from matplotlib import cm
 from matplotlib import colorbar
 from matplotlib import lines
 from scipy import stats as sstats
@@ -182,7 +181,7 @@ def plot_ts(dates,tsall,beach_slopes):
     fig = plt.figure()
     fig.set_size_inches([12,4])
     fig.set_tight_layout(True)    
-    cmap = cm.get_cmap('RdYlGn')
+    cmap = plt.get_cmap('RdYlGn')
     color_list = cmap(np.linspace(0,1,len(beach_slopes)))
     ax = fig.add_subplot(111)
     for i in range(len(tsall)):
@@ -333,7 +332,7 @@ def integrate_power_spectrum(dates_rand,tsall,settings,key=None):
         ax.set(title='Transect %s - Energy in tidal frequency band for each slope'%key,
                xlabel='Slope values',ylabel='Energy')
         ax.plot(beach_slopes_interp,E_interp,'-k',lw=1.5)
-        cmap = cm.get_cmap('RdYlGn')
+        cmap = plt.get_cmap('RdYlGn')
         color_list = cmap(np.linspace(0,1,len(beach_slopes)))
         for i in range(len(beach_slopes)): ax.plot(beach_slopes[i], E[i],'o',ms=8,mec='k',mfc=color_list[i,:])
         ax.plot(beach_slopes[np.argmin(E)],np.min(E),'bo',ms=14,mfc='None',mew=2)
@@ -358,7 +357,7 @@ def plot_spectrum_all(dates_rand,composite,tsall,settings, slope_est):
     freqs = frequency_grid(t,time_step,settings['n0'])    
     beach_slopes = range_slopes(settings['slope_min'], settings['slope_max'], settings['delta_slope'])
     # colormaps
-    cmap = cm.get_cmap('RdYlGn')
+    cmap = plt.get_cmap('RdYlGn')
     color_list = cmap(np.linspace(0,1,len(beach_slopes)))
     indices = np.arange(0,len(beach_slopes))
     
