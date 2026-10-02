@@ -7,12 +7,14 @@ import json
 import sys
 import os
 import traceback
+from typing import Optional
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from coastsat_pipeline.cli import run_pipeline_from_config
+from cli.engine import resolve_engine
 
 def choose_file(
     title: str = "Select a file",
@@ -176,7 +178,7 @@ def get_transect_settings_from_user() -> dict:
         "transect_skip_threshold": skip_threshold
     }
 
-def prompt_and_run_analysis(settings_paths: list[str], engine: str = "legacy"):
+def prompt_and_run_analysis(settings_paths: list[str], engine: Optional[str] = None):
     """
     Prompts user to run analysis on the provided list of settings.json paths.
     Handles both single and batch site cases.
@@ -204,9 +206,9 @@ def prompt_and_run_analysis(settings_paths: list[str], engine: str = "legacy"):
         else:
             typer.secho(f"  {sitename} failed with exit code {exit_code}.", fg=typer.colors.RED)
 
-def run_analysis_from_config(config_path: Path, engine: str = "legacy") -> int:
+def run_analysis_from_config(config_path: Path, engine: Optional[str] = None) -> int:
     """
-    Runs the appropriate analysis script based on the settings.json tide config.
+    Run the saved engine, or an explicit override, with legacy fallback for older sites.
 
     Parameters:
         config_path (Path): Path to the settings.json file.
@@ -215,10 +217,18 @@ def run_analysis_from_config(config_path: Path, engine: str = "legacy") -> int:
         int: Exit code from the subprocess (0 for success).
     """
     config_path = config_path.expanduser().resolve()
-    engine = engine.lower()
     if not config_path.exists():
         typer.secho(f"ERROR: Cannot find config at {config_path}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+
+    with open(config_path) as f:
+        config = json.load(f)
+    try:
+        engine = resolve_engine(config, engine)
+    except ValueError as exc:
+        typer.secho(f"ERROR: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Analysis engine: {engine}")
 
     if engine == "pipeline":
         try:
@@ -228,9 +238,6 @@ def run_analysis_from_config(config_path: Path, engine: str = "legacy") -> int:
             typer.secho(f"Pipeline run failed: {exc}", fg=typer.colors.RED)
             traceback.print_exc()
             return exc
-
-    with open(config_path) as f:
-        config = json.load(f)
 
     inputs = config.get("inputs", {})
     if "tide_csv_path" in inputs:

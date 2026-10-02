@@ -30,9 +30,12 @@ Relative paths inside the file are resolved against the site directory when `coa
 | `output_dir` | string | ✅ | Relative path to the folder where analysis outputs are written (typically `outputs`). |
 | `output_epsg` | integer | ✅ | EPSG code used for reprojection of transects and exported products. |
 | `tide_filter` | object | optional | Percentile filter applied during tide correction. |
+| `engine` | string | optional | `pipeline` or `legacy`, saved during GUI/CLI initialization. Later CLI runs use this unless `--engine` overrides it. Older files without this field use `legacy`. |
 | `notes` | string | optional | Free-form field for analysts to document context (ignored by scripts but useful for provenance). |
 
 Unknown fields are ignored by the analysis scripts but should be grouped under a dedicated namespace (e.g., `"experimental"`) to avoid collisions.
+
+The initialization GUI saves its engine dropdown selection even when "Run now" is unchecked. For an existing site created before this setting was saved, add `"engine": "pipeline"` at the top level to use the pipeline by default. An explicit `--engine` overrides the selection for that run without changing the saved setting. The site rerun GUI's `auto` selection uses the saved engine.
 
 ---
 

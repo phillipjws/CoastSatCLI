@@ -5,6 +5,7 @@ import time
 import json
 import geopandas as gpd
 from pathlib import Path
+from typing import Optional
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -13,6 +14,7 @@ if str(ROOT_DIR) not in sys.path:
 from dialogs import choose_file, choose_folder, choose_file_multiple, get_transect_settings_from_user, prompt_and_run_analysis, run_analysis_from_config, get_tide_correction_settings
 from file_utils import setup_project_directories, clear_output_directory
 from geo_utils import detect_or_prompt_epsg, load_aoi_and_shoreline, create_and_save_reference_shoreline, generate_and_save_transects, regenerate_transects_from_config
+from cli.engine import resolve_engine
 import shutil
 
 app = typer.Typer(
@@ -30,7 +32,8 @@ def initialize_single_site(
     transect_spacing: float = 100.0,
     transect_length: float = 200.0,
     transect_offset_ratio: float = 0.75,
-    transect_skip_threshold: float = 300.0
+    transect_skip_threshold: float = 300.0,
+    engine: str = "legacy",
 ) -> dict:
     """
     Creates a CoastSat project from a single AOI and a larger shoreline.
@@ -46,6 +49,7 @@ def initialize_single_site(
     Returns:
     - Dictionary with sitename, EPSG, and settings.json path
     """
+    engine = resolve_engine({}, engine)
     #start timer
     start = time.time()
     
@@ -94,6 +98,7 @@ def initialize_single_site(
 
     # Create settings.json
     settings = {
+        "engine": engine,
         "inputs": {
             "sitename": sitename,
             "aoi_path": os.path.relpath(aoi_dest, start=site_dir),
@@ -155,7 +160,7 @@ def init(
         "--engine",
         "-e",
         case_sensitive=False,
-        help="Choose 'legacy' to run the existing scripts or 'pipeline' to test the new runner when prompted to run.",
+        help="Analysis engine saved for each initialized site: 'legacy' or 'pipeline'.",
     )
 ):
     """
@@ -225,7 +230,8 @@ def init(
                 transect_spacing=transect_settings["transect_spacing"],
                 transect_length=transect_settings["transect_length"],
                 transect_offset_ratio=transect_settings["transect_offset_ratio"],
-                transect_skip_threshold=transect_settings["transect_skip_threshold"]
+                transect_skip_threshold=transect_settings["transect_skip_threshold"],
+                engine=engine,
             )
             settings_paths.append(site_info['settings_path'])
 
@@ -256,7 +262,8 @@ def init(
             transect_spacing=transect_settings["transect_spacing"],
             transect_length=transect_settings["transect_length"],
             transect_offset_ratio=transect_settings["transect_offset_ratio"],
-            transect_skip_threshold=transect_settings["transect_skip_threshold"]
+            transect_skip_threshold=transect_settings["transect_skip_threshold"],
+            engine=engine,
         )
 
         typer.secho("\nProject initialized successfully!\n", fg=typer.colors.CYAN, bold=True)
@@ -267,12 +274,12 @@ def init(
 @app.command("site-rerun", help="Rerun a previously initialized CoastSat site with updated inputs.")
 
 def site_rerun(
-    engine: str = typer.Option(
-        "legacy",
+    engine: Optional[str] = typer.Option(
+        None,
         "--engine",
         "-e",
         case_sensitive=False,
-        help="Choose 'legacy' to run the existing scripts or 'pipeline' to test the new runner.",
+        help="Override the saved engine ('legacy' or 'pipeline'); defaults to the site setting, or legacy for older sites.",
     )
 ):
     """
@@ -340,24 +347,24 @@ def site_rerun(
         )
 
     # Step 6: Prompt to run analysis
-    prompt_and_run_analysis([settings_path], engine=engine.lower())
+    prompt_and_run_analysis([settings_path], engine=engine)
 
 @app.command("run", help="Run the full CoastSat analysis using your settings.json.")
 def run(
     config: str = typer.Option(..., "--config", "-c", help="Path to project settings.json"),
-    engine: str = typer.Option(
-        "legacy",
+    engine: Optional[str] = typer.Option(
+        None,
         "--engine",
         "-e",
         case_sensitive=False,
-        help="Choose 'legacy' to run the existing scripts or 'pipeline' to test the new runner.",
+        help="Override the saved engine ('legacy' or 'pipeline'); defaults to the site setting, or legacy for older sites.",
     ),
 ):
     """
     Invoke the analysis engine with the provided settings.json.
     """
 
-    exit_code = run_analysis_from_config(Path(config), engine=engine.lower())
+    exit_code = run_analysis_from_config(Path(config), engine=engine)
     if exit_code == 0:
         typer.secho("\nAnalysis completed successfully!", fg=typer.colors.GREEN)
     else:
