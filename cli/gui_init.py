@@ -33,6 +33,8 @@ from cli.geo_utils import (  # noqa: E402
 )
 from cli.dialogs import run_analysis_from_config  # noqa: E402
 from cli.engine import resolve_engine  # noqa: E402
+from cli.gui_analysis import add_analysis_arguments, build_analysis_settings  # noqa: E402
+from coastsat_pipeline.site_parameters import SITE_PARAMETER_KEYS, resolve_site_parameters  # noqa: E402
 
 IMAGE_DIR = ROOT_DIR / "assets" / "gooey_icons"
 
@@ -114,12 +116,15 @@ def _init_site(
     epsg: int,
     transect_opts: dict,
     engine: str = "pipeline",
+    analysis_settings: dict | None = None,
 ) -> dict:
     """
     Core init routine: scaffold folders, clip shoreline to AOI, generate transects,
     write settings.json, and copy inputs into place. Returns paths for display.
     """
     engine = resolve_engine({}, engine)
+    if analysis_settings is not None:
+        resolve_site_parameters(analysis_settings)
     paths = setup_project_directories(str(base_dir), sitename)
     site_dir = Path(paths["site_dir"])
     input_dir = Path(paths["input_dir"])
@@ -169,6 +174,8 @@ def _init_site(
         )
     if tide_config.get("tide_filter"):
         settings["tide_filter"] = tide_config["tide_filter"]
+    if analysis_settings is not None:
+        settings.update({key: analysis_settings[key] for key in SITE_PARAMETER_KEYS if key in analysis_settings})
 
     settings_path = site_dir / "settings.json"
     with open(settings_path, "w") as f:
@@ -194,7 +201,7 @@ def delete_tifs(folder: Path):
             print(f"Could not delete {tif}: {e}")
     print(f"Deleted {count} tif files in {folder}")
 
-def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine="pipeline"):
+def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine="pipeline", analysis_settings=None):
     # modified to track failures instead of exit
     init_results = []
     init_failures = []
@@ -221,6 +228,7 @@ def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir,
                 epsg=epsg,
                 transect_opts=tran_opts,
                 engine=engine,
+                analysis_settings=analysis_settings,
             )
             init_results.append(result)
             print(f"  settings.json: {result['settings_path']}")
@@ -398,12 +406,14 @@ def main() -> None:
     tran_group.add_argument("--transect_length", metavar="Transect Length", default=200.0, type=float, help="Transect total length (m).")
     tran_group.add_argument("--transect_offset_ratio", metavar="Transect Offset Ratio", default=0.75, type=float, help="Fraction seaward vs landward (0-1).")
     tran_group.add_argument("--transect_skip_threshold", metavar="Transect Skip Threshold", default=300.0, type=float, help="Skip shoreline segments shorter than this (m).")
+    add_analysis_arguments(parser, tran_group)
 
     args = parser.parse_args()
     date = datetime.now().strftime("%Y%m%d")
 
     try:
         _validate_numeric(args)
+        analysis_settings = build_analysis_settings(args)
     except Exception as exc:  # noqa: BLE001
         print(f"Validation error: {exc}")
         return
@@ -446,7 +456,10 @@ def main() -> None:
         "skip_threshold": float(args.transect_skip_threshold),
     }
 
-    init_results, init_failures = init_sites(aoi_paths, sitenames, args.epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine=args.engine)
+    init_results, init_failures = init_sites(
+        aoi_paths, sitenames, args.epsg, shoreline_gdf, tide_config, base_dir, tran_opts,
+        engine=args.engine, analysis_settings=analysis_settings,
+    )
     print("\nInitialization complete.")
     print(f"Successful: {len(init_results)}")
     print(f"Failed    : {len(init_failures)}")

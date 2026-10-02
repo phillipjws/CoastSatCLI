@@ -13,6 +13,7 @@ import json
 from .context import PipelineContext
 from .stage import PipelineStage
 from .parameters import Parameters, print_options
+from .site_parameters import resolve_site_parameters
 
 from . import checkpoints
 
@@ -35,7 +36,8 @@ class PipelineRunner:
     def run(self, context: PipelineContext) -> None:
         start_time = timeit.default_timer()
         last_time = start_time
-        params = Parameters()
+        with open(context.config_path, encoding="utf-8") as f:
+            params = resolve_site_parameters(json.load(f))
 
         if params.logging_level != "none":
             self.init_log_file(context, params)
