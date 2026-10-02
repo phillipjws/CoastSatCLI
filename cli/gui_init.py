@@ -345,6 +345,8 @@ def write_initialization_report(results, failures, base_dir, sitename):
     clear_before_run=True,
     show_restart_button=False,
     image_dir=str(IMAGE_DIR),
+    language="english",
+    language_dir=str(ROOT_DIR / "assets" / "gooey_languages"),
     navigation="TABBED",
     tabbed_groups=True,
     progress_regex=r"^PROGRESS: (?P<pct>\d+)%",
