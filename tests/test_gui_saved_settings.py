@@ -1,11 +1,9 @@
 """The full setup form persists selected imagery and extraction parameters."""
 
-import argparse
 import json
 from unittest.mock import patch
 
 import pytest
-from gooey import GooeyParser
 from gooey.python_bindings.config_generator import create_from_parser
 
 from cli import gui_init
@@ -20,19 +18,7 @@ from coastsat_pipeline.stages.detection_stage import DetectionStage
 
 
 def setup_parser():
-    captured = []
-
-    class Captured(Exception):
-        pass
-
-    def capture(parser, *args, **kwargs):
-        captured.append(parser)
-        raise Captured
-
-    with patch.object(argparse.ArgumentParser, "parse_args"), \
-            patch.object(GooeyParser, "parse_args", capture), pytest.raises(Captured):
-        gui_init.main()
-    return captured[0]
+    return gui_init.build_parser()
 
 
 def parse(parser, *args):
@@ -112,14 +98,12 @@ def test_form_choices_survive_batch_setup_and_reach_download_and_detection(tmp_p
         "--dist_clouds", "45", "--sand_color", "dark", "--save_detection_plots",
         "--plot_sat", "--transects_to_plot", "transect_1",
     ])
-    with patch.object(argparse.ArgumentParser, "parse_args"), \
-            patch.object(GooeyParser, "parse_args", return_value=args), \
-            patch.object(gui_init.gpd, "read_file"), \
-            patch.object(gui_init, "load_aoi_and_shoreline", return_value=(None, None)), \
-            patch.object(gui_init, "create_and_save_reference_shoreline"), \
-            patch.object(gui_init, "generate_and_save_transects"), \
+    with patch("geopandas.read_file"), \
+            patch("cli.geo_utils.load_aoi_and_shoreline", return_value=(None, None)), \
+            patch("cli.geo_utils.create_and_save_reference_shoreline"), \
+            patch("cli.geo_utils.generate_and_save_transects"), \
             patch.object(gui_init, "run_sites") as run:
-        gui_init.main()
+        gui_init.run_setup(args)
     run.assert_not_called()
     paths = sorted(tmp_path.glob("*/settings.json"))
     assert len(paths) == 2

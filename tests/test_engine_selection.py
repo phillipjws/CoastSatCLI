@@ -33,10 +33,10 @@ class EngineSelectionTests(unittest.TestCase):
             aoi.write_text("test AOI", encoding="utf-8")
             for engine in ("pipeline", "legacy"):
                 with self.subTest(engine=engine), \
-                        patch.object(gui_init, "load_aoi_and_shoreline", return_value=(None, None)), \
-                        patch.object(gui_init, "create_and_save_reference_shoreline"), \
-                        patch.object(gui_init, "generate_and_save_transects"), \
-                        patch.object(gui_init, "run_analysis_from_config") as run:
+                        patch("cli.geo_utils.load_aoi_and_shoreline", return_value=(None, None)), \
+                        patch("cli.geo_utils.create_and_save_reference_shoreline"), \
+                        patch("cli.geo_utils.generate_and_save_transects"), \
+                        patch("cli.dialogs.run_analysis_from_config") as run:
                     result = gui_init._init_site(
                         aoi_path=aoi,
                         sitename=engine,

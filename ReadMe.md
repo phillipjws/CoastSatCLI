@@ -71,6 +71,7 @@ These are the essential stages the CoastSat tooling runs through for each site:
 python -m cli.gui_init
 ```
    - In the GUI, select a base folder and sitename(s), pick a shoreline file, choose AOI KML(s) (single or batch, generated with [geojson.io](https://geojson.io/)), pick tide method (FES config vs tide CSV with beach slope), optional tide filtering, let EPSG auto-detect or override it, and adjust transect spacing/length/offset if needed. The GUI writes `settings.json` and scaffolds the site; you can also check “run now” to start analysis immediately (choose engine `pipeline`).
+   - Use the **Save Settings...** button at the top of the window (`Ctrl+S`) to save your form choices to a separate JSON file, even before completing setup. Later, use **Load Settings...** (`Ctrl+O`) to restore them and continue editing. These actions are also available in the **File** menu. Saving or opening a file does not create a site or start analysis. Saved GUI settings retain file paths, so check those paths if you move inputs or share the file. These files are separate from each site's analysis `settings.json`; see [saved GUI settings](docs/user/gui-settings.md).
 2) Run the pipeline via GUI:
 ```bash
 python -m coastsat_pipeline.gui

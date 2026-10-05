@@ -1,7 +1,6 @@
 """Site GUI choices reach pipeline stages without leaking into later sites."""
 
 import json
-import argparse
 from copy import deepcopy
 from datetime import datetime, date
 from types import SimpleNamespace
@@ -44,21 +43,7 @@ def test_gui_defaults_and_unchecked_disable_controls():
 
 def test_full_gui_builds_tabbed_spec_without_opening_window():
     from cli import gui_init
-    from gooey.python_bindings.config_generator import create_from_parser
-
-    class ParserCaptured(Exception):
-        pass
-
-    specs = []
-
-    def capture(parser, *args, **kwargs):
-        specs.append(create_from_parser(parser, gui_init.__file__, navigation="TABBED", tabbed_groups=True))
-        raise ParserCaptured
-
-    with patch.object(argparse.ArgumentParser, "parse_args"), \
-            patch.object(GooeyParser, "parse_args", capture), pytest.raises(ParserCaptured):
-        gui_init.main()
-    spec = specs[0]
+    spec = gui_init.build_gui_spec(gui_init.build_parser())
     assert spec["tabbed_groups"] is True
     serialized = json.dumps(spec)
     for title in ("Advanced Transect Settings", "Outlier Filtering", "Beach Slope"):
@@ -129,9 +114,9 @@ def test_batch_setup_saves_analysis_choices_in_each_site(tmp_path):
     aois = [tmp_path / f"aoi{i}.kml" for i in range(2)]
     for aoi in aois:
         aoi.write_text("test AOI")
-    with patch.object(gui_init, "load_aoi_and_shoreline", return_value=(None, None)), \
-            patch.object(gui_init, "create_and_save_reference_shoreline"), \
-            patch.object(gui_init, "generate_and_save_transects"):
+    with patch("cli.geo_utils.load_aoi_and_shoreline", return_value=(None, None)), \
+            patch("cli.geo_utils.create_and_save_reference_shoreline"), \
+            patch("cli.geo_utils.generate_and_save_transects"):
         results, failures = gui_init.init_sites(
             aois, ["site1", "site2"], 32610, None,
             {"method": "fes", "fes_config": "fes.yaml"}, tmp_path,

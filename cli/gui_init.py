@@ -13,28 +13,23 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Iterable, List
+from typing import TYPE_CHECKING, Iterable, List
 from datetime import datetime, date
 import csv
 
-import geopandas as gpd
-from gooey import Gooey, GooeyParser
+from gooey import GooeyParser
+
+if TYPE_CHECKING:
+    import geopandas as gpd
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from cli.file_utils import setup_project_directories  # noqa: E402
-from cli.geo_utils import (  # noqa: E402
-    create_and_save_reference_shoreline,
-    generate_and_save_transects,
-    load_aoi_and_shoreline,
-    pick_canadian_utm_epsg,
-)
-from cli.dialogs import run_analysis_from_config  # noqa: E402
+# Keep the form import path lightweight. Geospatial and analysis dependencies
+# are loaded by the worker functions only after the user submits the form.
 from cli.engine import resolve_engine  # noqa: E402
 from cli.gui_analysis import add_analysis_arguments, build_analysis_settings, build_shoreline_settings  # noqa: E402
-from cli.gui_download import build_download_settings  # noqa: E402
 from coastsat_pipeline.download_settings import resolve_download_settings  # noqa: E402
 from coastsat_pipeline.parameters import Parameters  # noqa: E402
 from coastsat_pipeline.site_parameters import SITE_PARAMETER_KEYS, resolve_site_parameters  # noqa: E402
@@ -104,6 +99,8 @@ def _detect_epsg(aoi_path: Path, manual_epsg: int | None) -> int:
     """
     if manual_epsg:
         return manual_epsg
+    from cli.geo_utils import pick_canadian_utm_epsg
+
     try:
         return pick_canadian_utm_epsg(str(aoi_path))
     except Exception as exc:  # noqa: BLE001
@@ -131,6 +128,13 @@ def _init_site(
         resolve_site_parameters(analysis_settings)
     if download_settings is not None:
         resolve_download_settings(Parameters.download_filters, download_settings)
+    from cli.file_utils import setup_project_directories
+    from cli.geo_utils import (
+        create_and_save_reference_shoreline,
+        generate_and_save_transects,
+        load_aoi_and_shoreline,
+    )
+
     paths = setup_project_directories(str(base_dir), sitename)
     site_dir = Path(paths["site_dir"])
     input_dir = Path(paths["input_dir"])
@@ -249,6 +253,8 @@ def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir,
     return init_results, init_failures
 
 def run_sites(init_results, args):
+    from cli.dialogs import run_analysis_from_config
+
     run_results = []
     run_failures = []
     for r in init_results:
@@ -356,20 +362,8 @@ def write_initialization_report(results, failures, base_dir, sitename):
     write_to_init_csv(results, failures, csv_path)
     print(f"Init CSV report written to:\n{csv_path}")
 
-@Gooey(
-    program_name="CoastSat Site Setup",
-    default_size=(800, 720),
-    clear_before_run=True,
-    show_restart_button=False,
-    image_dir=str(IMAGE_DIR),
-    language="english",
-    language_dir=str(ROOT_DIR / "assets" / "gooey_languages"),
-    navigation="TABBED",
-    tabbed_groups=True,
-    progress_regex=r"^PROGRESS: (?P<pct>\d+)%",
-    progress_expr="pct",
-)
-def main() -> None:
+def build_parser():
+    """Define the setup form for both the GUI and its worker process."""
     parser = GooeyParser(prog="Options", description="Create CoastSat settings.json and optionally run analysis.")
     parser._optionals.title = "Initial Setup"
     parser.add_argument("--engine", metavar="Analysis Engine", choices=["legacy", "pipeline"], default="pipeline", help="Analysis engine saved for this site and used when running it.")
@@ -446,7 +440,13 @@ def main() -> None:
     shoreline_group.add_argument("--plot_cloud_cover", metavar="Plot Cloud Cover", action="store_true", gooey_options={"initial_value": True}, help="Enable to plot histogram of cloud cover percentages of each image.")
     shoreline_group.add_argument("--save_sat_rgb", metavar="Save Satellite RGB", action="store_true", help="Enable to save satellite RGB images (must be True if plot_sat).")
 
-    args = parser.parse_args()
+    return parser
+
+
+def run_setup(args) -> None:
+    """Create sites and optionally run analysis from the submitted form."""
+    from cli.gui_download import build_download_settings
+
     date_str = datetime.now().strftime("%Y%m%d")
 
     try:
@@ -468,6 +468,8 @@ def main() -> None:
         return
 
     try:
+        import geopandas as gpd
+
         shoreline_gdf = gpd.read_file(shoreline_path)
     except Exception as exc:  # noqa: BLE001
         print(f"Failed to read shoreline: {exc}")
@@ -517,6 +519,37 @@ def main() -> None:
         # tell gui a run failed
         if len(run_failures) > 0:
             exit(1)
+
+
+def build_gui_spec(parser):
+    from gooey.python_bindings.config_generator import create_from_parser
+
+    return create_from_parser(
+        parser, __file__,
+        program_name="CoastSat Site Setup",
+        default_size=(800, 720),
+        clear_before_run=True,
+        show_restart_button=False,
+        image_dir=str(IMAGE_DIR),
+        language="english",
+        language_dir=str(ROOT_DIR / "assets" / "gooey_languages"),
+        navigation="TABBED",
+        tabbed_groups=True,
+        progress_regex=r"^PROGRESS: (?P<pct>\d+)%",
+        progress_expr="pct",
+    )
+
+
+def main() -> None:
+    parser = build_parser()
+    arguments = sys.argv[1:]
+    if "--ignore-gooey" in arguments:
+        # Gooey submits the form to a separate, headless worker process.
+        run_setup(parser.parse_args([arg for arg in arguments if arg != "--ignore-gooey"]))
+    else:
+        from cli.gui_presets import run_settings_gui
+
+        run_settings_gui(build_gui_spec(parser))
 
 
 if __name__ == "__main__":
