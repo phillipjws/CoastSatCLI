@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from ..context import TideConfig, TideFilterConfig
+from ..download_settings import resolve_download_settings
 from coastsat import SDS_tools
 
 
 def build_settings(config_path: Path, download_filters: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Load the CLI-generated config and return a fully populated Settings dataclass.
+    Load site settings and resolve download overrides over pipeline defaults.
     """
     config = _load_config_dict(config_path)
-    config.update(download_filters)
+    selected = resolve_download_settings(download_filters, config.pop("download_settings", {}))
+    config.update(selected)
     tide_cfg = _build_tide_config(config)
     config["tide_cfg"] = tide_cfg
     return config
@@ -25,6 +28,10 @@ def _load_config_dict(config_path: Path) -> Dict[str, Any]:
     with open(config_path, "r") as f:
         config = json.load(f)
     base_dir = config_path.parent
+    if not isinstance(config, dict):
+        raise ValueError("settings.json must contain an object.")
+    if not isinstance(config.get("download_settings", {}), dict):
+        raise ValueError("download_settings must be an object.")
 
     if "output_epsg" not in config:
         raise KeyError("settings.json must include an 'output_epsg' entry.")
@@ -36,9 +43,10 @@ def _load_config_dict(config_path: Path) -> Dict[str, Any]:
             inputs_config[key] = str((base_dir / inputs_config[key]).resolve())
 
 
-    new_config = {}
-    if "fes_config" in inputs_config:
-        new_config["fes_config"] = str(Path(inputs_config["fes_config"]).expanduser().resolve())
+    new_config = {"download_settings": config.get("download_settings", {})}
+    for key in ("fes_config", "tide_csv_path"):
+        if inputs_config.get(key):
+            inputs_config[key] = str((base_dir / Path(inputs_config[key]).expanduser()).resolve())
 
     if "output_dir" in config:
         new_config["filepath"] = str((base_dir / config["output_dir"]).resolve())
@@ -60,6 +68,14 @@ def _load_config_dict(config_path: Path) -> Dict[str, Any]:
         "tide_csv_path": inputs_config.get("tide_csv_path"),
         "output_epsg": config["output_epsg"]
     })
+    for key in ("reference_elevation", "beach_slope"):
+        if inputs_config.get(key) is not None:
+            value = inputs_config[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{key} must be a finite number.")
+            if not math.isfinite(value) or (key == "beach_slope" and value <= 0):
+                raise ValueError(f"{key} must be finite" + (" and positive." if key == "beach_slope" else "."))
+            new_config[key] = value
 
     return new_config
 
@@ -74,7 +90,7 @@ def load_settings_from_cli_config(config_path: Path) -> Dict[str, Any]:
 
 
 def _build_tide_config(config: Dict[str, Any]) -> TideConfig:
-    inputs = config.get("inputs", {})
+    inputs = config.get("inputs", config)
     tide_filter_data = config.get("tide_filter")
     tide_filter = None
     if tide_filter_data:

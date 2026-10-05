@@ -9,4 +9,5 @@ def download_images(global_settings: Dict[str, Any], download_filters) -> Tuple[
     """
     Downloads images and returns metadata
     """
-    return SDS_download.retrieve_images({**global_settings, **download_filters})
+    # Config loading has resolved the site's selection; defaults fill gaps only.
+    return SDS_download.retrieve_images({**download_filters, **global_settings})

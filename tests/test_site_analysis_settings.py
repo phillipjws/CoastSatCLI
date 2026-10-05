@@ -3,7 +3,7 @@
 import json
 import argparse
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, date
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -33,7 +33,8 @@ def test_gui_defaults_and_unchecked_disable_controls():
     assert params.transect_settings == Parameters.transect_settings
     assert params.outlier_settings == Parameters.outlier_settings
     assert params.slope_settings == Parameters.slope_settings
-    assert params.slope_estimation_date_range == Parameters.slope_estimation_date_range
+    assert selected["slope_estimation_date_range"] == ["1999-01-01", date.today().isoformat()]
+    assert params.slope_estimation_date_range[0] == pytz.utc.localize(datetime(1999, 1, 1))
     selected = gui_settings("--disable_cass", "--skip_rejection_plots", "--skip_outlier_plots", "--skip_slope_plots")
     assert selected["transect_settings"]["CASS"] is False
     assert selected["transect_settings"]["plot_rejection_counts"] is False

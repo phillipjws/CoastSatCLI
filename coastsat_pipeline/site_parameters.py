@@ -10,7 +10,7 @@ from .parameters import Parameters
 
 
 SITE_PARAMETER_KEYS = (
-    "transect_settings", "outlier_settings", "slope_settings",
+    "shoreline_settings", "transect_settings", "outlier_settings", "slope_settings",
     "slope_estimation_date_range", "tide_timestep", "default_slope",
 )
 
@@ -42,7 +42,7 @@ def resolve_site_parameters(config, defaults=None):
         if isinstance(value, (dict, list)):
             setattr(params, name, deepcopy(value))
 
-    for name in ("transect_settings", "outlier_settings", "slope_settings"):
+    for name in ("shoreline_settings", "transect_settings", "outlier_settings", "slope_settings"):
         overrides = config.get(name, {})
         if not isinstance(overrides, dict):
             raise ValueError(f"{name} must be a JSON object.")
@@ -54,6 +54,19 @@ def resolve_site_parameters(config, defaults=None):
         for key, value in target.items():
             if isinstance(getattr(Parameters, name).get(key), bool) and not isinstance(value, bool):
                 raise ValueError(f"{name}.{key} must be true or false.")
+
+    shoreline = params.shoreline_settings
+    _number(shoreline["s2cloudless_prob"], "shoreline_settings.s2cloudless_prob", 0, integer=True)
+    if shoreline["s2cloudless_prob"] > 100:
+        raise ValueError("S2 cloud probability threshold must be between 0 and 100.")
+    _number(shoreline["cloud_thresh"], "shoreline_settings.cloud_thresh", 0)
+    if shoreline["cloud_thresh"] > 1:
+        raise ValueError("Cloud coverage threshold must be between 0 and 1.")
+    _number(shoreline["dist_clouds"], "shoreline_settings.dist_clouds", 0)
+    for key in ("min_length_sl", "max_dist_ref", "min_beach_area"):
+        _number(shoreline[key], f"shoreline_settings.{key}", 0, strict=True)
+    if shoreline["sand_color"] not in ("default", "latest", "dark", "bright"):
+        raise ValueError("Sand color must be default, latest, dark, or bright.")
 
     tran = params.transect_settings
     for key in ("along_dist", "clustering_threshold"):

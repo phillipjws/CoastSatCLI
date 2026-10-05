@@ -1,4 +1,6 @@
-"""GUI controls and serialization for pipeline transect and slope parameters."""
+"""GUI controls and serialization for pipeline analysis parameters."""
+
+from datetime import date
 
 from coastsat_pipeline.parameters import Parameters
 from coastsat_pipeline.site_parameters import resolve_site_parameters
@@ -38,11 +40,10 @@ def add_analysis_arguments(parser, tran_group):
                                help="Skip time-series plots before and after outlier rejection.")
 
     slope_group = parser.add_argument_group("Beach Slope", description="Pipeline FES slope estimation. CSV mode uses the slope on the Tidal Correction tab.")
-    dates = Parameters.slope_estimation_date_range
     slope_group.add_argument("--slope_start_date", metavar="Slope Start Date", widget="DateChooser",
-                             default=dates[0].strftime("%Y-%m-%d"), help="Start of slope estimation window (included).")
+                             default="1999-01-01", help="Start of slope estimation window (included).")
     slope_group.add_argument("--slope_end_date", metavar="Slope End Date", widget="DateChooser",
-                             default=dates[1].strftime("%Y-%m-%d"), help="End of slope estimation window (excluded).")
+                             default=date.today().strftime("%Y-%m-%d"), help="End of slope estimation window (excluded).")
     slope_group.add_argument("--tide_timestep", metavar="Tide Timestep (seconds)", type=float,
                              default=Parameters.tide_timestep, help="Interval for computing the continuous FES tide series.")
     slope_group.add_argument("--default_slope", metavar="Fallback Beach Slope (m/m)", type=float,
@@ -94,4 +95,10 @@ def build_analysis_settings(args):
     )
     settings["slope_settings"]["plot_fig"] = not args.skip_slope_plots
     resolve_site_parameters(settings)
+    return settings
+
+
+def build_shoreline_settings(args):
+    settings = {key: getattr(args, key) for key in Parameters.shoreline_settings}
+    resolve_site_parameters({"shoreline_settings": settings})
     return settings

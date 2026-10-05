@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import Iterable, List
-from datetime import datetime
+from datetime import datetime, date
 import csv
 
 import geopandas as gpd
@@ -33,7 +33,10 @@ from cli.geo_utils import (  # noqa: E402
 )
 from cli.dialogs import run_analysis_from_config  # noqa: E402
 from cli.engine import resolve_engine  # noqa: E402
-from cli.gui_analysis import add_analysis_arguments, build_analysis_settings  # noqa: E402
+from cli.gui_analysis import add_analysis_arguments, build_analysis_settings, build_shoreline_settings  # noqa: E402
+from cli.gui_download import build_download_settings  # noqa: E402
+from coastsat_pipeline.download_settings import resolve_download_settings  # noqa: E402
+from coastsat_pipeline.parameters import Parameters  # noqa: E402
 from coastsat_pipeline.site_parameters import SITE_PARAMETER_KEYS, resolve_site_parameters  # noqa: E402
 
 IMAGE_DIR = ROOT_DIR / "assets" / "gooey_icons"
@@ -117,6 +120,7 @@ def _init_site(
     transect_opts: dict,
     engine: str = "pipeline",
     analysis_settings: dict | None = None,
+    download_settings: dict | None = None,
 ) -> dict:
     """
     Core init routine: scaffold folders, clip shoreline to AOI, generate transects,
@@ -125,6 +129,8 @@ def _init_site(
     engine = resolve_engine({}, engine)
     if analysis_settings is not None:
         resolve_site_parameters(analysis_settings)
+    if download_settings is not None:
+        resolve_download_settings(Parameters.download_filters, download_settings)
     paths = setup_project_directories(str(base_dir), sitename)
     site_dir = Path(paths["site_dir"])
     input_dir = Path(paths["input_dir"])
@@ -176,6 +182,8 @@ def _init_site(
         settings["tide_filter"] = tide_config["tide_filter"]
     if analysis_settings is not None:
         settings.update({key: analysis_settings[key] for key in SITE_PARAMETER_KEYS if key in analysis_settings})
+    if download_settings is not None:
+        settings["download_settings"] = download_settings
 
     settings_path = site_dir / "settings.json"
     with open(settings_path, "w") as f:
@@ -201,7 +209,7 @@ def delete_tifs(folder: Path):
             print(f"Could not delete {tif}: {e}")
     print(f"Deleted {count} tif files in {folder}")
 
-def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine="pipeline", analysis_settings=None):
+def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir, tran_opts, engine="pipeline", analysis_settings=None, download_settings=None):
     # modified to track failures instead of exit
     init_results = []
     init_failures = []
@@ -229,6 +237,7 @@ def init_sites(aoi_paths, sitenames, epsg, shoreline_gdf, tide_config, base_dir,
                 transect_opts=tran_opts,
                 engine=engine,
                 analysis_settings=analysis_settings,
+                download_settings=download_settings,
             )
             init_results.append(result)
             print(f"  settings.json: {result['settings_path']}")
@@ -375,13 +384,16 @@ def main() -> None:
         required=True,
         help="AOI KML file(s), choose one for single site analysis or multiple for batch analysis."
     )
+    parser.add_argument("--sat_list", metavar="Satellite Missions", widget="Listbox", nargs="+", choices=["L5", "L7", "L8", "L9", "S2"], default=["L5", "L7", "L8", "L9", "S2"], help="Satellite missions to download imagery from. Pipeline engine.")
+    parser.add_argument("--start_date", metavar="Start Date", widget="DateChooser", default="1984-01-01", help="Start date for imagery download (YYYY-MM-DD).")
+    parser.add_argument("--end_date", metavar="End Date", widget="DateChooser", default=date.today().strftime("%Y-%m-%d"), help="End date for imagery download (YYYY-MM-DD).")
     parser.add_argument(
         "--delete_tifs",
         metavar="Delete Intermediate TIFs",
         action="store_true",
         help="Delete intermediate tif files after each site run"
     )
-    parser.add_argument("--run_now", metavar="Run Analysis Now", action="store_true", help="Run analysis immediately after init.")
+    parser.add_argument("--run_now", metavar="Run Analysis Now", action="store_true", gooey_options={"initial_value": True}, help="Run analysis immediately after init.")
 
     # Tide inputs: choose FES or CSV, optional filter.
     tide_group = parser.add_argument_group("Tidal Correction")
@@ -408,12 +420,40 @@ def main() -> None:
     tran_group.add_argument("--transect_skip_threshold", metavar="Transect Skip Threshold", default=300.0, type=float, help="Skip shoreline segments shorter than this (m).")
     add_analysis_arguments(parser, tran_group)
 
+    # Additional download filters (advanced)
+    download_group = parser.add_argument_group("Advanced Download Filters", description="Per-site imagery download filters for the pipeline engine.")
+    download_group.add_argument("--months", metavar="Months to Include", nargs="+", type=str, help="Include only images taken in these months (1-12), separated by spaces or commas.")
+    download_group.add_argument("--excluded_epsg_codes", metavar="Excluded EPSG Codes", nargs="+", type=str, help="Exclude images with these EPSG codes, separated by comma.")
+    download_group.add_argument("--landsat_wrs", metavar="Landsat WRS Path/Row", type=str, help="Specify a Landsat tile (WRS path/row).")
+    download_group.add_argument("--s2_tile", metavar="Sentinel-2 Tile", type=str, help="Specify a Sentinel-2 tile (e.g., 09UVA).")
+    download_group.add_argument("--skip_l7_slc", metavar="Skip Landsat 7 SLC", action="store_true", help="Skip Landsat 7 images after Scan-Line-Correction failure.")
+
+    # Shoreline Extraction Settings (advanced)
+    shoreline_group = parser.add_argument_group("Advanced Shoreline Settings", description="Per-site shoreline extraction settings for the pipeline engine.")
+    shoreline_group.add_argument("--cloud_mask_issue", metavar="Cloud Mask Issue", action="store_true", help="Set this if sand pixels are masked (in black) on many images.")
+    shoreline_group.add_argument("--pan_off", metavar="Disable Pansharpening", action="store_true", help="Disable pansharpening for Landsat 7/8/9 imagery.")
+    shoreline_group.add_argument("--s2cloudless_prob", metavar="S2 Cloud Probability Threshold", default=60, type=int, help="Threshold to identify cloud pixels in the s2cloudless probability mask (0-100).")
+    shoreline_group.add_argument("--cloud_thresh", metavar="Cloud Coverage Threshold", default=0.5, type=float, help="Percentage of image that can be covered by cloud (0-1).")
+    shoreline_group.add_argument("--dist_clouds", metavar="Cloud Buffer Distance", default=30, type=float, help="Distance in metres defining a buffer around cloudy pixels where the shoreline cannot be mapped.")
+    shoreline_group.add_argument("--min_length_sl", metavar="Minimum Shoreline Length", default=500, type=float, help="Minimum length of shoreline perimeter to be kept (in meters).")
+    shoreline_group.add_argument("--max_dist_ref", metavar="Maximum Distance from Reference Shoreline", default=250, type=float, help="Maximum distance from the reference shoreline in meters.")
+    shoreline_group.add_argument("--check_detection", metavar="Check Shoreline Detection", action="store_true", help="Enable to check shoreline detection.")
+    shoreline_group.add_argument("--adjust_detection", metavar="Adjust Shoreline Detection", action="store_true", help="Enable to adjust shoreline detection.")
+    shoreline_group.add_argument("--min_beach_area", metavar="Minimum Beach Area", default=1000, type=float, help="Minimum beach area in square meters to consider for analysis.")
+    shoreline_group.add_argument("--sand_color", metavar="Sand Color Classification", choices=["default", "latest", "dark", "bright"], default="default", help="Classification model for sand color: 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches).")
+    shoreline_group.add_argument("--plot_mndwi", metavar="Plot MNDWI", action="store_true", help="Enable to plot histograms of MNDWI values for each image.")
+    shoreline_group.add_argument("--save_detection_plots", metavar="Save Detection Plots", action="store_true", gooey_options={"initial_value": True}, help="Enable to save detection plots (RGB, pixel classification, MNDWI, and extracted shoreline).")
+    shoreline_group.add_argument("--plot_cloud_cover", metavar="Plot Cloud Cover", action="store_true", gooey_options={"initial_value": True}, help="Enable to plot histogram of cloud cover percentages of each image.")
+    shoreline_group.add_argument("--save_sat_rgb", metavar="Save Satellite RGB", action="store_true", help="Enable to save satellite RGB images (must be True if plot_sat).")
+
     args = parser.parse_args()
-    date = datetime.now().strftime("%Y%m%d")
+    date_str = datetime.now().strftime("%Y%m%d")
 
     try:
         _validate_numeric(args)
         analysis_settings = build_analysis_settings(args)
+        analysis_settings["shoreline_settings"] = build_shoreline_settings(args)
+        download_settings = build_download_settings(args)
     except Exception as exc:  # noqa: BLE001
         print(f"Validation error: {exc}")
         return
@@ -446,7 +486,7 @@ def main() -> None:
     aoi_paths = _split_paths(args.aois)
 
     if len(aoi_paths) == 1: sitenames = [args.sitename]
-    else: sitenames = [f"{date}_{args.sitename}__{Path(i).stem}" for i in aoi_paths] # subfolders like '20260415_Vancouver__U_UTM10_0364'
+    else: sitenames = [f"{date_str}_{args.sitename}__{Path(i).stem}" for i in aoi_paths] # subfolders like '20260415_Vancouver__U_UTM10_0364'
 
     tide_config = _build_tide_config(args)
     tran_opts = {
@@ -458,7 +498,7 @@ def main() -> None:
 
     init_results, init_failures = init_sites(
         aoi_paths, sitenames, args.epsg, shoreline_gdf, tide_config, base_dir, tran_opts,
-        engine=args.engine, analysis_settings=analysis_settings,
+        engine=args.engine, analysis_settings=analysis_settings, download_settings=download_settings,
     )
     print("\nInitialization complete.")
     print(f"Successful: {len(init_results)}")

@@ -77,8 +77,8 @@ class Parameters:
     #####################
     # Note: these parameters only affect downloads. Analysis is unaffected (it is performed on anything already downloaded)
     download_filters = {
-        'dates': ["1984-01-01", "2025-01-01"], # range of dates of aquisitions to be downloaded
-        'sat_list': ["L5", "L7", "L8", "L9"], # satellite missions to download images from
+        'dates': ["1984-01-01", "2027-01-01"], # range of dates of aquisitions to be downloaded
+        'sat_list': ["L5", "L7", "L8", "L9", "S2"], # satellite missions to download images from
         # 'excluded_epsg_codes': ['32609'], # exclude images with given epsg codes
         # 'LandsatWRS': '055022', # specify a Landsat tile (WRS path/row)
         # 'S2tile': '09UVA', # specifies an S2 tile
