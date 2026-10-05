@@ -21,3 +21,4 @@ test_rstb.py
 /data
 /random
 .vscode/
+/.test-runs/
