@@ -416,8 +416,8 @@ def build_parser():
 
     # Additional download filters (advanced)
     download_group = parser.add_argument_group("Advanced Download Filters", description="Per-site imagery download filters for the pipeline engine.")
-    download_group.add_argument("--months", metavar="Months to Include", nargs="+", type=str, help="Include only images taken in these months (1-12), separated by spaces or commas.")
-    download_group.add_argument("--excluded_epsg_codes", metavar="Excluded EPSG Codes", nargs="+", type=str, help="Exclude images with these EPSG codes, separated by comma.")
+    download_group.add_argument("--months", metavar="Months to Include", nargs="+", type=str, help="Include only images taken in these months (1-12), separated by spaces or commas (e.g., 5, 6, 7 only downloads images taken in May, June, and July).")
+    download_group.add_argument("--excluded_epsg_codes", metavar="Excluded EPSG Codes", nargs="+", type=str, help="Exclude images with these EPSG codes, separated by comma (e.g., 4326, 3857).")
     download_group.add_argument("--landsat_wrs", metavar="Landsat WRS Path/Row", type=str, help="Specify a Landsat tile (WRS path/row).")
     download_group.add_argument("--s2_tile", metavar="Sentinel-2 Tile", type=str, help="Specify a Sentinel-2 tile (e.g., 09UVA).")
     download_group.add_argument("--skip_l7_slc", metavar="Skip Landsat 7 SLC", action="store_true", help="Skip Landsat 7 images after Scan-Line-Correction failure.")
