@@ -22,3 +22,4 @@ test_rstb.py
 /random
 .vscode/
 /.test-runs/
+/docs/developer/
